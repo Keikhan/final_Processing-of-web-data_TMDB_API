@@ -1,16 +1,4 @@
-"""
-TMDB Movie Data Analytics Pipeline
-====================================
-Complete end-to-end analytics project using TMDB API
 
-Domain: Movie Industry Analytics
-Data Source: TMDB API (JSON)
-Records: 3000+ movies
-Techniques: API calls, ML clustering, sentiment analysis, visualization
-
-Author: Final Project
-Date: December 2025
-"""
 
 import requests
 import time
@@ -20,13 +8,13 @@ from datetime import datetime
 import warnings
 warnings.filterwarnings('ignore')
 
-# Data Visualization
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
 import plotly.graph_objects as go
 
-# Machine Learning
+
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
@@ -35,11 +23,11 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix, silhouette_score
 
-# Text Processing & Sentiment Analysis
+
 from textblob import TextBlob
 import re
 
-# Dashboard (Optional)
+
 try:
     import streamlit as st
     STREAMLIT_AVAILABLE = True
@@ -47,17 +35,11 @@ except:
     STREAMLIT_AVAILABLE = False
 
 
-# ============================================================================
-# CONFIGURATION
-# ============================================================================
 
 API_KEY = "196a4950d6d4fbe2aeb903d4a605a9ac"
 BASE_URL = "https://api.themoviedb.org/3"
 
 
-# ============================================================================
-# PART 1: DATA ACQUISITION (API Calls)
-# ============================================================================
 
 class TMDBDataCollector:
     """
@@ -95,7 +77,6 @@ class TMDBDataCollector:
         """
         movies_data = []
         
-        # Get genres first
         if not self.genre_map:
             self.get_genres()
         
@@ -115,7 +96,7 @@ class TMDBDataCollector:
                 data = response.json()
                 
                 for movie in data.get('results', []):
-                    # Extract and structure data
+
                     genre_names = [self.genre_map.get(g_id, 'Unknown') 
                                  for g_id in movie.get('genre_ids', [])]
                     
@@ -135,11 +116,11 @@ class TMDBDataCollector:
                         'movie_id': movie.get('id', 0)
                     })
                 
-                # Progress indicator
+                
                 if page % 10 == 0:
                     print(f"  ✅ Progress: {page}/{num_pages} pages | {len(movies_data)} movies collected")
                 
-                # Respect API rate limits
+                
                 time.sleep(0.25)
                 
             except Exception as e:
@@ -150,14 +131,8 @@ class TMDBDataCollector:
         return movies_data
 
 
-# ============================================================================
-# PART 2: DATA CLEANING & PREPROCESSING
-# ============================================================================
-
 class DataPreprocessor:
-    """
-    Clean and preprocess movie data
-    """
+
     
     @staticmethod
     def clean_data(df):
@@ -167,24 +142,24 @@ class DataPreprocessor:
         initial_count = len(df)
         print(f"  Initial records: {initial_count}")
         
-        # Remove duplicates
+        
         df = df.drop_duplicates(subset=['title', 'year'], keep='first')
         print(f"  Removed {initial_count - len(df)} duplicates")
         
-        # Remove movies with no rating or votes
+        
         df = df[df['rating'] > 0]
         df = df[df['votes'] > 0]
         print(f"  Removed movies with no ratings/votes")
         
-        # Handle missing values
+        
         df['description'].fillna('No description available', inplace=True)
         df['genres'].fillna('Unknown', inplace=True)
         
-        # Remove outliers (votes)
+        
         vote_threshold = df['votes'].quantile(0.99)
         df = df[df['votes'] <= vote_threshold]
         
-        # Clean text fields
+        
         df['title'] = df['title'].str.strip()
         df['description'] = df['description'].str.strip()
         
@@ -195,34 +170,33 @@ class DataPreprocessor:
     
     @staticmethod
     def engineer_features(df):
-        """Create new features for analysis"""
+        
         print("⚙️ FEATURE ENGINEERING\n")
         
-        # 1. Rating Category
+        
         df['rating_category'] = pd.cut(df['rating'], 
                                        bins=[0, 5, 6.5, 7.5, 8.5, 10],
                                        labels=['Poor', 'Average', 'Good', 'Great', 'Excellent'])
         
-        # 2. Popularity Score (normalized)
+        
         df['popularity_score'] = df['votes'] * df['rating']
         
-        # 3. Decade
+        
         df['decade'] = (df['year'] // 10) * 10
         df['decade'] = df['decade'].apply(lambda x: f"{x}s" if x > 0 else 'Unknown')
         
-        # 4. Vote Category
+        
         df['vote_category'] = pd.cut(df['votes'],
                                      bins=[0, 100, 500, 1000, 5000, 100000],
                                      labels=['Very Low', 'Low', 'Medium', 'High', 'Very High'])
         
-        # 5. Primary Genre (first genre listed)
+        
         df['primary_genre'] = df['genres'].apply(lambda x: x.split(',')[0].strip() if x else 'Unknown')
         
-        # 6. Description Length
+       
         df['description_length'] = df['description'].apply(len)
         df['description_word_count'] = df['description'].apply(lambda x: len(x.split()))
         
-        # 7. Sentiment Analysis on Description
         print("  Performing sentiment analysis on movie descriptions...")
         df['sentiment_polarity'] = df['description'].apply(
             lambda x: TextBlob(str(x)).sentiment.polarity
@@ -230,17 +204,17 @@ class DataPreprocessor:
         df['sentiment_subjectivity'] = df['description'].apply(
             lambda x: TextBlob(str(x)).sentiment.subjectivity
         )
+
         
-        # 8. Sentiment Category
         df['sentiment_category'] = pd.cut(df['sentiment_polarity'],
                                           bins=[-1, -0.1, 0.1, 1],
                                           labels=['Negative', 'Neutral', 'Positive'])
         
-        # 9. Is Recent (last 10 years)
+        
         current_year = datetime.now().year
         df['is_recent'] = df['year'] >= (current_year - 10)
         
-        # 10. Language Category
+        
         df['language_category'] = df['language'].apply(
             lambda x: 'English' if x == 'en' else 'Non-English'
         )
@@ -251,21 +225,16 @@ class DataPreprocessor:
         return df
 
 
-# ============================================================================
-# PART 3: ANALYTICS & MACHINE LEARNING
-# ============================================================================
 
 class MovieAnalytics:
-    """
-    Perform comprehensive analytics and ML on movie data
-    """
+    
     
     def __init__(self, df):
         self.df = df
         self.results = {}
         
     def descriptive_statistics(self):
-        """Calculate key statistics"""
+       
         print("📊 DESCRIPTIVE STATISTICS\n")
         
         stats = {
@@ -293,19 +262,19 @@ class MovieAnalytics:
         return stats
     
     def time_series_analysis(self):
-        """Analyze trends over time"""
+        
         print("📈 TIME SERIES ANALYSIS\n")
         
-        # Movies per decade
+        
         decade_counts = self.df['decade'].value_counts().sort_index()
         print(f"  Movies by Decade:")
         for decade, count in decade_counts.head(10).items():
             print(f"    {decade}: {count} movies")
         
-        # Average rating by decade
+        
         decade_ratings = self.df.groupby('decade')['rating'].mean().sort_index()
         
-        # Trend analysis
+        
         recent_avg = self.df[self.df['is_recent']]['rating'].mean()
         old_avg = self.df[~self.df['is_recent']]['rating'].mean()
         
@@ -322,23 +291,23 @@ class MovieAnalytics:
         return decade_counts, decade_ratings
     
     def clustering_analysis(self, n_clusters=5):
-        """K-Means clustering on movie features"""
+       
         print(f"🔬 K-MEANS CLUSTERING (k={n_clusters})\n")
         
-        # Select features for clustering
+       
         features = self.df[['rating', 'votes', 'popularity', 
                            'sentiment_polarity', 'description_length']].copy()
         features = features.fillna(features.mean())
         
-        # Standardize features
+       
         scaler = StandardScaler()
         features_scaled = scaler.fit_transform(features)
         
-        # Apply K-Means
+        
         kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
         self.df['cluster'] = kmeans.fit_predict(features_scaled)
         
-        # Calculate silhouette score
+       
         silhouette = silhouette_score(features_scaled, self.df['cluster'])
         
         print(f"  Silhouette Score: {silhouette:.3f}")
@@ -358,22 +327,22 @@ class MovieAnalytics:
         """Random Forest to predict rating category"""
         print("🌳 CLASSIFICATION MODEL (Random Forest)\n")
         
-        # Prepare features
+        
         feature_cols = ['votes', 'popularity', 'sentiment_polarity', 
                        'description_length', 'year']
         X = self.df[feature_cols].fillna(0)
         y = self.df['rating_category']
         
-        # Split data
+       
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=42, stratify=y
         )
         
-        # Train Random Forest
+        
         clf = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
         clf.fit(X_train, y_train)
         
-        # Evaluate
+        
         y_pred = clf.predict(X_test)
         accuracy = (y_pred == y_test).mean()
         
@@ -386,7 +355,7 @@ class MovieAnalytics:
         print(f"\n  Classification Report:")
         print(classification_report(y_test, y_pred, zero_division=0))
         
-        # Feature importance
+       
         feature_importance = pd.DataFrame({
             'feature': feature_cols,
             'importance': clf.feature_importances_
@@ -407,18 +376,17 @@ class MovieAnalytics:
         """Analyze sentiment patterns"""
         print("💭 SENTIMENT ANALYSIS\n")
         
-        # Sentiment distribution
         sentiment_dist = self.df['sentiment_category'].value_counts()
         print(f"  Sentiment Distribution:")
         for category, count in sentiment_dist.items():
             pct = (count / len(self.df)) * 100
             print(f"    {category}: {count} ({pct:.1f}%)")
         
-        # Correlation between sentiment and rating
+        
         correlation = self.df['sentiment_polarity'].corr(self.df['rating'])
         print(f"\n  Correlation (Sentiment vs Rating): {correlation:.3f}")
         
-        # Average sentiment by genre
+        
         genre_sentiment = self.df.groupby('primary_genre')['sentiment_polarity'].mean().sort_values(ascending=False)
         print(f"\n  Top 5 Most Positive Genres:")
         for genre, sentiment in genre_sentiment.head(5).items():
@@ -434,14 +402,10 @@ class MovieAnalytics:
         return sentiment_dist
 
 
-# ============================================================================
-# PART 4: DATA VISUALIZATION
-# ============================================================================
+
 
 class MovieVisualizer:
-    """
-    Create comprehensive visualizations
-    """
+
     
     def __init__(self, df, output_dir='outputs'):
         self.df = df
@@ -466,10 +430,9 @@ class MovieVisualizer:
         print(f"✅ All visualizations saved to '{self.output_dir}/'\n")
     
     def plot_rating_distribution(self):
-        """Rating distribution"""
+        
         fig, axes = plt.subplots(1, 2, figsize=(14, 6))
         
-        # Histogram
         axes[0].hist(self.df['rating'], bins=30, color='skyblue', edgecolor='black')
         axes[0].set_title('Movie Rating Distribution', fontsize=14, fontweight='bold')
         axes[0].set_xlabel('Rating (0-10)')
@@ -479,7 +442,7 @@ class MovieVisualizer:
         axes[0].legend()
         axes[0].grid(alpha=0.3)
         
-        # Rating categories
+      
         rating_counts = self.df['rating_category'].value_counts()
         axes[1].bar(rating_counts.index, rating_counts.values, color='coral')
         axes[1].set_title('Movies by Rating Category', fontsize=14, fontweight='bold')
@@ -497,14 +460,14 @@ class MovieVisualizer:
         """Genre analysis"""
         fig, axes = plt.subplots(2, 1, figsize=(12, 10))
         
-        # Top genres by count
+        
         top_genres = self.df['primary_genre'].value_counts().head(10)
         axes[0].barh(top_genres.index, top_genres.values, color='lightgreen')
         axes[0].set_title('Top 10 Genres by Movie Count', fontsize=14, fontweight='bold')
         axes[0].set_xlabel('Number of Movies')
         axes[0].grid(axis='x', alpha=0.3)
         
-        # Average rating by genre
+        
         genre_ratings = self.df.groupby('primary_genre')['rating'].mean().sort_values(ascending=False).head(10)
         axes[1].barh(genre_ratings.index, genre_ratings.values, color='steelblue')
         axes[1].set_title('Top 10 Genres by Average Rating', fontsize=14, fontweight='bold')
@@ -517,10 +480,10 @@ class MovieVisualizer:
         print("  ✅ Genre analysis saved")
     
     def plot_time_trends(self):
-        """Time series trends"""
+       
         fig, axes = plt.subplots(2, 1, figsize=(14, 10))
         
-        # Movies per year
+       
         year_counts = self.df[self.df['year'] > 1950].groupby('year').size()
         axes[0].plot(year_counts.index, year_counts.values, color='purple', linewidth=2)
         axes[0].fill_between(year_counts.index, year_counts.values, alpha=0.3, color='purple')
@@ -529,7 +492,7 @@ class MovieVisualizer:
         axes[0].set_ylabel('Number of Movies')
         axes[0].grid(alpha=0.3)
         
-        # Average rating by decade
+       
         decade_ratings = self.df[self.df['decade'] != 'Unknown'].groupby('decade')['rating'].mean().sort_index()
         axes[1].bar(decade_ratings.index, decade_ratings.values, color='orange')
         axes[1].set_title('Average Rating by Decade', fontsize=14, fontweight='bold')
@@ -547,7 +510,7 @@ class MovieVisualizer:
         """Sentiment visualization"""
         fig, axes = plt.subplots(1, 2, figsize=(14, 6))
         
-        # Sentiment vs Rating scatter
+        
         scatter = axes[0].scatter(self.df['sentiment_polarity'], self.df['rating'],
                                  c=self.df['votes'], cmap='viridis', alpha=0.5, s=30)
         axes[0].set_title('Sentiment vs Rating', fontsize=14, fontweight='bold')
@@ -556,7 +519,7 @@ class MovieVisualizer:
         axes[0].grid(alpha=0.3)
         plt.colorbar(scatter, ax=axes[0], label='Votes')
         
-        # Sentiment distribution
+      
         sentiment_counts = self.df['sentiment_category'].value_counts()
         colors = ['#ff6b6b', '#95a5a6', '#51cf66']
         axes[1].pie(sentiment_counts.values, labels=sentiment_counts.index, 
@@ -573,7 +536,7 @@ class MovieVisualizer:
         if 'cluster' not in self.df.columns:
             return
         
-        # PCA for 2D visualization
+       
         features = self.df[['rating', 'votes', 'popularity', 
                            'sentiment_polarity', 'description_length']].fillna(0)
         scaler = StandardScaler()
@@ -610,14 +573,10 @@ class MovieVisualizer:
         print("  ✅ Correlation heatmap saved")
 
 
-# ============================================================================
-# PART 5: MAIN EXECUTION PIPELINE
-# ============================================================================
+
 
 def main():
-    """
-    Main execution pipeline
-    """
+  
     print("="*80)
     print("🎬 TMDB MOVIE DATA ANALYTICS PIPELINE")
     print("="*80)
@@ -626,7 +585,7 @@ def main():
     print(f"Target: 3000+ movie records")
     print("="*80 + "\n")
     
-    # Step 1: Data Acquisition
+   
     print("="*80)
     print("STEP 1: DATA ACQUISITION (API)")
     print("="*80)
@@ -634,15 +593,15 @@ def main():
     collector = TMDBDataCollector(API_KEY)
     movies_list = collector.fetch_movies(num_pages=180, endpoint='top_rated')
     
-    # Convert to DataFrame
+    
     df = pd.DataFrame(movies_list)
     print(f"✅ Created DataFrame: {len(df)} records, {len(df.columns)} columns\n")
     
-    # Save raw data
+  
     df.to_csv('outputs/raw_movie_data.csv', index=False)
     print(f"💾 Raw data saved: outputs/raw_movie_data.csv\n")
     
-    # Step 2: Data Cleaning & Preprocessing
+    
     print("="*80)
     print("STEP 2: DATA CLEANING & PREPROCESSING")
     print("="*80 + "\n")
@@ -651,11 +610,11 @@ def main():
     df = preprocessor.clean_data(df)
     df = preprocessor.engineer_features(df)
     
-    # Save cleaned data
+   
     df.to_csv('outputs/cleaned_movie_data.csv', index=False)
     print(f"💾 Cleaned data saved: outputs/cleaned_movie_data.csv\n")
     
-    # Step 3: Analytics & Machine Learning
+    
     print("="*80)
     print("STEP 3: ANALYTICS & MACHINE LEARNING")
     print("="*80 + "\n")
@@ -667,7 +626,7 @@ def main():
     analytics.classification_model()
     analytics.sentiment_analysis()
     
-    # Step 4: Visualization
+   
     print("="*80)
     print("STEP 4: DATA VISUALIZATION")
     print("="*80 + "\n")
@@ -675,7 +634,7 @@ def main():
     visualizer = MovieVisualizer(df)
     visualizer.create_all_visualizations()
     
-    # Final Summary
+    
     print("="*80)
     print("✅ PIPELINE COMPLETE!")
     print("="*80)
@@ -705,10 +664,11 @@ def main():
 
 
 if __name__ == "__main__":
-    # Run the complete pipeline
+    
     df_movies = main()
     
     print("\n💡 TIP: You can now explore the data further:")
     print("   - Load: df = pd.read_csv('outputs/cleaned_movie_data.csv')")
     print("   - View visualizations in outputs/ folder")
     print("   - Run custom analysis on df_movies DataFrame")
+
